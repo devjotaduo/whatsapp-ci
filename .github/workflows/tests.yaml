@@ -63,7 +63,7 @@ jobs:
           [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] && [ -n "$STATUS_TOKEN" ] || exit 0
           curl -fsS -X POST -H "Authorization: Bearer $STATUS_TOKEN" -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/$SOURCE_REPO/statuses/$SHA" \
-            -d "{\"state\":\"pending\",\"context\":\"testes-hospedados\",\"description\":\"Rodando em $GITHUB_REPOSITORY\",\"target_url\":\"$URL\"}" >/dev/null
+            -d "{\"state\":\"pending\",\"context\":\"testes-hospedados\",\"description\":\"Rodando em $GITHUB_REPOSITORY\",\"target_url\":\"$URL\"}" >/dev/null \n            || echo "::warning::Não deu para publicar o status em $SOURCE_REPO (STATUS_TOKEN inválido ou sem permissão)."
 
   test:
     name: ${{ matrix.nome }}
@@ -162,7 +162,7 @@ jobs:
           case "$RESULT" in success) state=success ;; cancelled) state=error ;; *) state=failure ;; esac
           curl -fsS -X POST -H "Authorization: Bearer $STATUS_TOKEN" -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/$SOURCE_REPO/statuses/$SHA" \
-            -d "{\"state\":\"$state\",\"context\":\"testes-hospedados\",\"description\":\"Testes: $RESULT\",\"target_url\":\"$URL\"}" >/dev/null
+            -d "{\"state\":\"$state\",\"context\":\"testes-hospedados\",\"description\":\"Testes: $RESULT\",\"target_url\":\"$URL\"}" >/dev/null \n            || echo "::warning::Não deu para publicar o status em $SOURCE_REPO (STATUS_TOKEN inválido ou sem permissão)."
 
   limpar:
     needs: test

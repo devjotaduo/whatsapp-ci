@@ -1,7 +1,7 @@
 name: Tests
 
 # Testa o repositório privado devjotaduo/whatsapp em runners hospedados pelo GitHub (gratuitos em repositório público).
-# Disparo: push em run/pr-<número>-<commit>-<execução>-<tentativa> (merge do pull request) ou
+# Disparo: o Vigia (vigia.yml) a cada 10 minutos, à mão, ou push em run/pr-<número>-<commit>-<execução>-<tentativa> (merge do pull request) ou
 # run/sha-<commit>-<execução>-<tentativa> (commit da main), feito pelo ci-hospedado.yml da origem com uma chave de deploy.
 on:
   push:
@@ -13,6 +13,10 @@ on:
         description: Branch, tag ou commit do repositório de origem
         required: true
         type: string
+      origem:
+        description: Ref de onde o commit veio (o Vigia preenche)
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -22,7 +26,7 @@ concurrency:
   group: tests-${{ github.event_name == 'push' && github.ref_name || inputs.ref }}
   cancel-in-progress: true
 
-run-name: Tests ${{ github.event_name == 'push' && github.ref_name || inputs.ref }}
+run-name: Tests ${{ github.event_name == 'push' && github.ref_name || format('{0} {1}', inputs.origem, inputs.ref) }}
 
 jobs:
   plan:

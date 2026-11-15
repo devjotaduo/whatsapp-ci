@@ -1,0 +1,143 @@
+name: Tests
+
+# Testa o repositório privado devjotaduo/whatsapp em runners hospedados pelo GitHub (gratuitos em repositório público).
+# Disparo: push em run/pr-<número>-<commit>-<execução>-<tentativa> (merge do pull request) ou
+# run/sha-<commit>-<execução>-<tentativa> (commit da main), feito pelo ci-hospedado.yml da origem com uma chave de deploy.
+on:
+  push:
+    branches:
+      - 'run/**'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag ou commit do repositório de origem
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: tests-${{ github.event_name == 'push' && github.ref_name || inputs.ref }}
+  cancel-in-progress: true
+
+run-name: Tests ${{ github.event_name == 'push' && github.ref_name || inputs.ref }}
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ref: ${{ steps.ref.outputs.ref }}
+    steps:
+      - name: Resolver o ref da origem
+        id: ref
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TRIGGER_BRANCH: ${{ github.ref_name }}
+          INPUT_REF: ${{ inputs.ref }}
+        run: |
+          if [ "$EVENT_NAME" != push ]; then echo "ref=$INPUT_REF" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [[ "$TRIGGER_BRANCH" =~ ^run/pr-([0-9]+)-[0-9a-f]{40}-[0-9]+-[0-9]+$ ]]; then
+            echo "ref=refs/pull/${BASH_REMATCH[1]}/merge" >> "$GITHUB_OUTPUT"
+          elif [[ "$TRIGGER_BRANCH" =~ ^run/sha-([0-9a-f]{40})-[0-9]+-[0-9]+$ ]]; then
+            echo "ref=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+          else
+            echo "Branch de disparo inválida."; exit 1
+          fi
+
+  test:
+    name: ${{ matrix.nome }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - nome: App (interface)
+            pasta: .
+          - nome: Backend
+            pasta: backend
+    defaults:
+      run:
+        working-directory: ${{ matrix.pasta }}
+    steps:
+      - name: Checkout da origem
+        uses: actions/checkout@v4
+        with:
+          repository: devjotaduo/whatsapp
+          ref: ${{ needs.plan.outputs.ref }}
+          ssh-key: ${{ secrets.SOURCE_DEPLOY_KEY }}
+          persist-credentials: false
+      - name: Conferir se há projeto nesta pasta
+        id: projeto
+        working-directory: .
+        run: |
+          if [ -f "${{ matrix.pasta }}/package.json" ]; then
+            echo "existe=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "existe=false" >> "$GITHUB_OUTPUT"
+            echo "Sem package.json em ${{ matrix.pasta }}; nada a validar."
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.projeto.outputs.existe == 'true'
+        with:
+          node-version: '24'
+
+      - name: Ativar Yarn 4
+        if: steps.projeto.outputs.existe == 'true'
+        run: corepack enable
+
+      # O typecheck do backend roda ../scripts/cliente-core.mjs, que importa pacotes da raiz
+      - name: Instalar dependências da raiz
+        if: steps.projeto.outputs.existe == 'true' && matrix.pasta != '.'
+        working-directory: .
+        # Os pacotes do Twenty vêm do GitHub Packages do fork (@devjotaduo): este repositório precisa de acesso de leitura em cada pacote.
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
+        run: yarn install --immutable
+
+      - name: Instalar dependências
+        if: steps.projeto.outputs.existe == 'true'
+        # Os pacotes do Twenty vêm do GitHub Packages do fork (@devjotaduo): este repositório precisa de acesso de leitura em cada pacote.
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
+        run: yarn install --immutable
+
+      - name: Lint
+        if: steps.projeto.outputs.existe == 'true'
+        run: yarn lint
+
+      - name: Typecheck
+        if: steps.projeto.outputs.existe == 'true'
+        run: yarn typecheck
+
+      - name: Testes
+        if: steps.projeto.outputs.existe == 'true'
+        run: yarn test
+
+      # A CLI varre a pasta inteira do app; o build pela cópia garante que a interface monta sem o backend.
+      - name: Build da interface
+        if: steps.projeto.outputs.existe == 'true' && matrix.pasta == '.'
+        # O preparar-interface instala as dependências da cópia, também do GitHub Packages.
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
+        run: yarn build
+
+  limpar:
+    needs: test
+    if: always() && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Apagar a branch de disparo
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+        run: gh api -X DELETE "repos/$REPO/git/refs/heads/$BRANCH" || true

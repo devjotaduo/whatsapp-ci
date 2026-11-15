@@ -64,7 +64,7 @@ jobs:
           code=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "Authorization: Bearer $STATUS_TOKEN" -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/$SOURCE_REPO/statuses/$SHA" \
             -d "{\"state\":\"pending\",\"context\":\"testes-hospedados\",\"description\":\"Rodando em $GITHUB_REPOSITORY\",\"target_url\":\"$URL\"}")
-          [ "$code" = 201 ] || echo "::warning::Status não publicado em $SOURCE_REPO: HTTP $code (401 token inválido; 403/404 sem Commit statuses nesse repositório)."
+          [ "$code" = 201 ] || echo "::warning::Status não publicado em $SOURCE_REPO: HTTP $code (401 token inválido; 403/404 sem Commit statuses nesse repositório). Segredo com ${#STATUS_TOKEN} caracteres, começa com github_pat_: $([[ "$STATUS_TOKEN" == github_pat_* ]] && echo sim || echo não)."
 
   test:
     name: ${{ matrix.nome }}
@@ -164,7 +164,7 @@ jobs:
           code=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "Authorization: Bearer $STATUS_TOKEN" -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/$SOURCE_REPO/statuses/$SHA" \
             -d "{\"state\":\"$state\",\"context\":\"testes-hospedados\",\"description\":\"Testes: $RESULT\",\"target_url\":\"$URL\"}")
-          [ "$code" = 201 ] || echo "::warning::Status não publicado em $SOURCE_REPO: HTTP $code (401 token inválido; 403/404 sem Commit statuses nesse repositório)."
+          [ "$code" = 201 ] || echo "::warning::Status não publicado em $SOURCE_REPO: HTTP $code (401 token inválido; 403/404 sem Commit statuses nesse repositório). Segredo com ${#STATUS_TOKEN} caracteres, começa com github_pat_: $([[ "$STATUS_TOKEN" == github_pat_* ]] && echo sim || echo não)."
 
   limpar:
     needs: test

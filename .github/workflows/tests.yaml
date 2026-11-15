@@ -61,10 +61,10 @@ jobs:
         run: |
           # Só com um commit exato (o Vigia dispara assim) e com o token de status configurado.
           [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] && [ -n "$STATUS_TOKEN" ] || exit 0
-          curl -fsS -X POST -H "Authorization: Bearer $STATUS_TOKEN" -H "Accept: application/vnd.github+json" \
+          code=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "Authorization: Bearer $STATUS_TOKEN" -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/$SOURCE_REPO/statuses/$SHA" \
-            -d "{\"state\":\"pending\",\"context\":\"testes-hospedados\",\"description\":\"Rodando em $GITHUB_REPOSITORY\",\"target_url\":\"$URL\"}" >/dev/null \
-            || echo "::warning::Não deu para publicar o status em $SOURCE_REPO (STATUS_TOKEN inválido ou sem permissão)."
+            -d "{\"state\":\"pending\",\"context\":\"testes-hospedados\",\"description\":\"Rodando em $GITHUB_REPOSITORY\",\"target_url\":\"$URL\"}")
+          [ "$code" = 201 ] || echo "::warning::Status não publicado em $SOURCE_REPO: HTTP $code (401 token inválido; 403/404 sem Commit statuses nesse repositório)."
 
   test:
     name: ${{ matrix.nome }}
@@ -161,10 +161,10 @@ jobs:
         run: |
           [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] && [ -n "$STATUS_TOKEN" ] || exit 0
           case "$RESULT" in success) state=success ;; cancelled) state=error ;; *) state=failure ;; esac
-          curl -fsS -X POST -H "Authorization: Bearer $STATUS_TOKEN" -H "Accept: application/vnd.github+json" \
+          code=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "Authorization: Bearer $STATUS_TOKEN" -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/$SOURCE_REPO/statuses/$SHA" \
-            -d "{\"state\":\"$state\",\"context\":\"testes-hospedados\",\"description\":\"Testes: $RESULT\",\"target_url\":\"$URL\"}" >/dev/null \
-            || echo "::warning::Não deu para publicar o status em $SOURCE_REPO (STATUS_TOKEN inválido ou sem permissão)."
+            -d "{\"state\":\"$state\",\"context\":\"testes-hospedados\",\"description\":\"Testes: $RESULT\",\"target_url\":\"$URL\"}")
+          [ "$code" = 201 ] || echo "::warning::Status não publicado em $SOURCE_REPO: HTTP $code (401 token inválido; 403/404 sem Commit statuses nesse repositório)."
 
   limpar:
     needs: test

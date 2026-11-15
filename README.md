@@ -9,3 +9,5 @@ gh workflow run tests.yaml --repo devjotaduo/whatsapp-ci -f ref=<branch>
 ```
 
 O código é lido com uma chave só de leitura guardada no secret `SOURCE_DEPLOY_KEY`. Os logs das execuções são públicos: uma falha de typecheck, lint ou teste imprime trechos do código da origem.
+
+Com o secret `STATUS_TOKEN` (token fine-grained com *Commit statuses: write* na origem), cada execução disparada pelo Vigia publica o status `testes-hospedados` no commit da origem, que aparece no pull request. Sem ele, o resultado fica só aqui.

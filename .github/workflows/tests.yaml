@@ -18,6 +18,9 @@ on:
         required: false
         type: string
 
+env:
+  SOURCE_REPO: devjotaduo/whatsapp
+
 permissions:
   contents: read
   packages: read
@@ -50,6 +53,17 @@ jobs:
           else
             echo "Branch de disparo inválida."; exit 1
           fi
+      - name: Status pendente no commit da origem
+        env:
+          STATUS_TOKEN: ${{ secrets.STATUS_TOKEN }}
+          SHA: ${{ steps.ref.outputs.ref }}
+          URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # Só com um commit exato (o Vigia dispara assim) e com o token de status configurado.
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] && [ -n "$STATUS_TOKEN" ] || exit 0
+          curl -fsS -X POST -H "Authorization: Bearer $STATUS_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$SOURCE_REPO/statuses/$SHA" \
+            -d "{\"state\":\"pending\",\"context\":\"testes-hospedados\",\"description\":\"Rodando em $GITHUB_REPOSITORY\",\"target_url\":\"$URL\"}" >/dev/null
 
   test:
     name: ${{ matrix.nome }}
@@ -130,6 +144,25 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ github.token }}
         run: yarn build
+
+  status:
+    needs: [plan, test]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Resultado no commit da origem
+        env:
+          STATUS_TOKEN: ${{ secrets.STATUS_TOKEN }}
+          SHA: ${{ needs.plan.outputs.ref }}
+          RESULT: ${{ needs.test.result }}
+          URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] && [ -n "$STATUS_TOKEN" ] || exit 0
+          case "$RESULT" in success) state=success ;; cancelled) state=error ;; *) state=failure ;; esac
+          curl -fsS -X POST -H "Authorization: Bearer $STATUS_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$SOURCE_REPO/statuses/$SHA" \
+            -d "{\"state\":\"$state\",\"context\":\"testes-hospedados\",\"description\":\"Testes: $RESULT\",\"target_url\":\"$URL\"}" >/dev/null
 
   limpar:
     needs: test

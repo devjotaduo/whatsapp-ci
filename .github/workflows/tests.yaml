@@ -84,7 +84,7 @@ jobs:
         working-directory: ${{ matrix.pasta }}
     steps:
       - name: Checkout da origem
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: devjotaduo/whatsapp
           ref: ${{ needs.plan.outputs.ref }}
@@ -101,9 +101,10 @@ jobs:
             echo "Sem package.json em ${{ matrix.pasta }}; nada a validar."
           fi
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: steps.projeto.outputs.existe == 'true'
         with:
+          package-manager-cache: false
           node-version: '24'
 
       - name: Ativar Yarn 4
